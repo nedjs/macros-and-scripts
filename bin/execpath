@@ -1,0 +1,3 @@
+#!/bin/bash
+[[ -z $1 ]] && echo "Missing PID" && exit 1
+wmic process where processId=$1 get ExecutablePath

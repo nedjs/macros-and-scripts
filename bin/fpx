@@ -1,0 +1,132 @@
+#!node
+
+const net = require('net');
+const SERVER_PORT = 80;
+
+
+var hostPortMap = process.argv.slice(2).reduce((map, arg, i) => {
+	var host, remoteHost, port,
+		vals = arg.split(':');
+
+	if(vals.length == 3) {
+		[host, remoteHost, port] = vals;
+	} else {
+		[host, port] = vals;
+	}
+
+	var [host, destHostOrPort, portOrNull] = arg.split(':');
+	if(!host) exit('Missing host argument for param ' + i);
+	if(!port) exit('Missing port argument for param ' + i);
+	if(!port.match(/^\d+$/m)) exit('Invalid port value for param ' + i);
+	if(+port === 80) exit('Cannot forward to port 80, will be in use.');
+
+	map[host] = {
+		host: host || 'localhost',
+		port: port
+	}
+
+	return map;
+}, {});
+
+if(Object.keys(hostPortMap).length <= 0) {
+	exit('Usage: ...<local_hostname>:[dest_hostname]:<port>', 6);
+}
+
+
+// This server listens on TCP/IP port 1234
+var tcpServer = net.createServer(handleClient);
+tcpServer.listen(SERVER_PORT);
+
+
+console.log(`Server started on port ${SERVER_PORT} using`);
+Object.keys(hostPortMap).forEach(k => {
+	console.log(`\t${k} - ${hostPortMap[k].host}:${hostPortMap[k].port}`);
+})
+
+
+function handleClient(client) {
+	let proxy = null;
+	client.on('data', (data) => {
+		if(proxy) {
+	  		client.end();
+		} else {
+			let dataStr = data.toString();
+			let details = getRequestDetails(dataStr);
+			if(!details.host) {
+				client.end();
+			} else if(hostPortMap[details.host]) {
+				var mapped = hostPortMap[details.host];
+				log(`${client.address().address}:${client.address().port} - ${colorMethod(details.method)}${details.method}\x1b[0m to ${mapped.host}:${mapped.port}${details.path}`);
+
+				// sanatize out host header
+				proxy = proxyTo(client, mapped, replaceHostHeader(dataStr, mapped));
+			} else {
+				log(`No mapping for ${details.host} - client ${client.address().address}:${client.address().port} dropped`);
+				let res = `<html><body><p>No mapping for host: <b>${details.host}</b></p></body></html>`;
+				client.write(`HTTP/1.1 502\r\nserver: lproxy\r\ncontent-length: ${Buffer.byteLength(res, 'utf8')}\r\n\r\n${res}`);
+				client.end();
+			}
+		}
+	});
+	
+	const cleanup = () => proxy && proxy.end();
+	client.on('error', cleanup);
+	client.on('end', cleanup);
+}
+
+function proxyTo(client, mapping, initialData) {
+	const proxy = net.createConnection(mapping.port, mapping.host, () => {
+		proxy.write(initialData);
+	});
+
+	proxy.on('data', (data) => {
+		client.write(data);
+	});
+
+	const cleanup = () => client.end();
+
+	proxy.on('error', cleanup);
+	proxy.on('end', cleanup);
+
+	return proxy;
+}
+
+function getRequestDetails(data) {
+	let head = data.split('\r\n\r\n')[0];
+	let headLines = head.split('\r\n').map(l => l.split(': '));
+
+	let [method, path] = headLines[0][0].split(' ');
+	let hostEntry = headLines.find(hs => hs[0].toLowerCase() === 'host');
+	let host = hostEntry && hostEntry[1];
+
+	return { method, path, host };
+}
+
+function replaceHostHeader(data, mapped) {
+	let newHostValue = mapped.host;
+	if(mapped.port !== 80  && mapped.port !== 443) {
+		newHostValue += ':'+mapped.port;
+	}
+	return data.replace(/^host\:\s+[^\r]+/gmi, 'host: ' + newHostValue)
+}
+
+
+function log(message) {
+	console.log(`\x1b[36m[${new Date().toISOString()}]\x1b[0m ${message}`)
+}
+
+function colorMethod(method) {
+	let colors = {
+		'GET': 		'\x1b[32m',
+		'POST': 	'\x1b[34m',
+		'HEAD': 	'\x1b[30m',
+		'OPTIONS': 	'\x1b[33m',
+	}
+	return colors[method] || ''
+}
+
+
+function exit(message, code) {
+	console.error(message || "Unexpected failure");
+	process.exit(code || 1);
+}
