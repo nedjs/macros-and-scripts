@@ -5,12 +5,12 @@ alias docksave='[[ ! -z "$1" ]] && docker commit $(docker ps -lq)'
 set PATH=/c/bin:/c/Program\ Files/Python37/Scripts:$PATH
 
 function gbranch_label {
-	BRANCH=`git rev-parse --abbrev-ref HEAD 2>/dev/null`
-	if [[ ! -z "$BRANCH" ]]; then 
-		printf "($BRANCH)"
-	else
-		printf ""
-	fi
+  BRANCH=`git rev-parse --abbrev-ref HEAD 2>/dev/null`
+  if [[ ! -z "$BRANCH" ]]; then 
+    printf "($BRANCH)"
+  else
+    printf ""
+  fi
 }
 
 # same as below but with __git_ps1 instead of my function
