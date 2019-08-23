@@ -1,0 +1,7 @@
+nmap - https://nmap.org/download.html
+bind9 - https://www.isc.org/download/
+
+gitbash - https://gitforwindows.org/
+cygwin - https://cygwin.com/install.html
+
+conemu - https://conemu.github.io/en/Downloads.html
