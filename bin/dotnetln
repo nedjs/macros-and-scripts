@@ -1,0 +1,46 @@
+#!/bin/bash
+set -e
+
+chk_folder() {
+	if [[ -z "$1" ]]; then
+		echo "Missing directory $1" >&2; exit 2
+	fi
+}
+
+resolve_packages_folder() {
+	local packageFolder=`find "$1/packages/" -maxdepth 1 -name "${2}.*" `
+	chk_folder "$packageFolder"
+	local libFolder=`find $packageFolder/lib -maxdepth 1 -name "net*"`
+	chk_folder "$libFolder"
+	echo "$libFolder"
+}
+
+if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]]; then
+	echo "Missing params, expected $0 <package_name> <package_path> <dest_path>" >&2
+	echo "  <package_name>   Name of the package you will be linking."
+	echo "  <package_path>   Folder the package can be found in."
+	echo "  <dest_path>      Path to destination."
+	echo "  Example command: `basename $0` CoStar.Api.Economy ./Interfaces/CoStar.Api.Economy ./Implementation"
+	exit 499
+fi
+
+projName="$1"
+sourceProj=`realpath "$2"`/bin/Debug
+destProj=$(resolve_packages_folder "`realpath "$3"`" $projName)
+
+if [[ ! -d "$sourceProj" ]]; then
+	echo "Source directory not found $sourceProj" >&2; 
+	exit 4
+fi
+# if [[ ! -d "$destProj" ]]; then
+# 	echo "Destination directory not found $destProj" >&2; 
+# 	exit 5
+# fi
+
+IFS=$'\n'
+for item in $destProj
+do
+	rm -rf $item
+	# ln -fsnv "${sourceProj}/" "${destProj}"
+	ln -snv "${sourceProj}/" "${item}"
+done

@@ -1,0 +1,6 @@
+#!/bin/bash
+host=$1
+port=$2
+[ -z $host ] && echo "Missing <host> param, usage <host> [port:443]" && exit 1
+[ -z $port ] && port=443
+nmap -sV --script ssl-enum-ciphers -p $port $host
